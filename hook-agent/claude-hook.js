@@ -61,7 +61,7 @@ function post(urlPath, body) {
         "Content-Length": Buffer.byteLength(data),
         Authorization: `Bearer ${CLAUDASH_TOKEN}`,
       },
-      timeout: 4000,
+      timeout: 8000,
     };
     const req = mod.request(opts, (res) => { res.resume(); resolve(res.statusCode); });
     req.on("error", () => resolve(null));
@@ -81,7 +81,7 @@ function get(urlPath) {
       path: url.pathname + url.search,
       method: "GET",
       headers: { Authorization: `Bearer ${CLAUDASH_TOKEN}` },
-      timeout: 4000,
+      timeout: 8000,
     };
     let body = "";
     const req = mod.request(opts, (res) => {

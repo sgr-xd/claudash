@@ -71,7 +71,7 @@ function ensureHook(eventName, command) {
   if (!already) {
     settings.hooks[eventName].push({
       matcher: '',
-      hooks: [{ type: 'command', command, timeout: 5 }],
+      hooks: [{ type: 'command', command, timeout: 10 }],
     });
   }
 }
