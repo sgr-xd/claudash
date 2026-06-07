@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY main.py .
 
+# Copy hook agent + install script (served at /api/hook-agent and /install/)
+COPY hook-agent/ ./hook-agent/
+COPY install.sh .
+
 # Copy compiled frontend into the static serving path
 COPY --from=ui-builder /build/ui/dist ./app/static/
 

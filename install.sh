@@ -78,6 +78,7 @@ function ensureHook(eventName, command) {
 
 const cmd = 'node ' + hookScript;
 ensureHook('SessionStart', cmd);
+ensureHook('PreToolUse', cmd);
 ensureHook('PostToolUse', cmd);
 ensureHook('Stop', cmd);
 ensureHook('PermissionRequest', cmd);
