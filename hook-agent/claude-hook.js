@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
- * claudash hook agent v1.1.0
+ * claudash hook agent v1.2.0
  * Receives Claude Code hook events on stdin and POSTs them to the Claudash server.
  *
  * On SessionStart:
  *   - Reads ~/.claude/settings.json and sends registered MCPs + enabled plugins
  *   - Fetches the latest policy and merges it into settings.json
+ *   - Caches deny-list to ~/.claude/claudash-policy-cache.json for offline PreToolUse checks
  *   - Checks for a newer version and self-updates if available
+ *
+ * On PreToolUse:
+ *   - Reads cached deny-list and checks if the tool is blocked
+ *   - If blocked: exits with code 2 (Claude shows the stderr as the reason)
+ *   - Also POSTs a ToolBlocked event to the server for the admin audit log
  *
  * Config (~/.claude/claudash-config.json or env vars):
  *   url / CLAUDASH_URL         e.g. http://localhost:3365
@@ -20,11 +26,11 @@ const http  = require("http");
 const fs    = require("fs");
 const path  = require("path");
 const os    = require("os");
-const crypto = require("crypto");
 
-const AGENT_VERSION  = "1.1.0";
-const SETTINGS_PATH  = path.join(os.homedir(), ".claude", "settings.json");
-const AGENT_PATH     = path.join(os.homedir(), ".claude", "claudash-hook.js");
+const AGENT_VERSION      = "1.2.0";
+const SETTINGS_PATH      = path.join(os.homedir(), ".claude", "settings.json");
+const AGENT_PATH         = path.join(os.homedir(), ".claude", "claudash-hook.js");
+const POLICY_CACHE_PATH  = path.join(os.homedir(), ".claude", "claudash-policy-cache.json");
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -111,6 +117,68 @@ function getRaw(urlPath) {
   });
 }
 
+// ── Deny-list pattern matching ────────────────────────────────────────────────
+
+/**
+ * Convert a simple glob pattern (* = any chars) into a RegExp.
+ * Used for matching tool names and input patterns.
+ */
+function globToRegex(pattern) {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
+/**
+ * Check if a tool call matches a deny pattern.
+ *
+ * Pattern forms (mirroring Claude Code settings.json):
+ *   "Bash"              — matches tool named "Bash" exactly
+ *   "mcp__slack__*"     — glob on tool name
+ *   "Bash(curl *)"      — tool name "Bash" AND input contains something matching "curl *"
+ *   "Write(* .env)"     — tool name "Write" AND file path matches "* .env"
+ */
+function matchesDenyPattern(pattern, toolName, toolInput) {
+  const parenIdx = pattern.indexOf("(");
+  let namePat, inputPat;
+
+  if (parenIdx >= 0 && pattern.endsWith(")")) {
+    namePat  = pattern.slice(0, parenIdx).trim();
+    inputPat = pattern.slice(parenIdx + 1, -1).trim();
+  } else {
+    namePat  = pattern.trim();
+    inputPat = null;
+  }
+
+  // Check tool name
+  if (!globToRegex(namePat).test(toolName)) return false;
+
+  // If no input pattern, tool name match is enough
+  if (!inputPat) return true;
+
+  // Check input: stringify the input and test against the input pattern
+  const inputStr =
+    typeof toolInput === "string"
+      ? toolInput
+      : JSON.stringify(toolInput || "");
+
+  return globToRegex(inputPat).test(inputStr);
+}
+
+/**
+ * Read the cached deny list from disk.
+ * Returns { deny: string[] } — empty array if cache is missing or corrupt.
+ */
+function readDenyCache() {
+  try {
+    return JSON.parse(fs.readFileSync(POLICY_CACHE_PATH, "utf8"));
+  } catch (_) {
+    return { deny: [] };
+  }
+}
+
 // ── Read registered MCPs and plugins from settings.json ───────────────────────
 
 function readSettingsInfo() {
@@ -120,7 +188,9 @@ function readSettingsInfo() {
       ? Object.keys(settings.mcpServers)
       : [];
     const enabledPlugins = settings.enabledPlugins
-      ? Object.entries(settings.enabledPlugins).filter(([, v]) => v !== false).map(([k]) => k)
+      ? Object.entries(settings.enabledPlugins)
+          .filter(([, v]) => v !== false)
+          .map(([k]) => k)
       : [];
     return { mcpServers, enabledPlugins };
   } catch (_) {
@@ -137,17 +207,28 @@ async function syncPolicy() {
   const fragment = res.body;
   if (!fragment || typeof fragment !== "object" || Object.keys(fragment).length === 0) return;
 
+  // ── Write policy cache (deny list for PreToolUse checks) ──────────────────
+  const denyList  = fragment.permissions?.deny  || [];
+  const allowList = fragment.permissions?.allow || [];
+  try {
+    fs.writeFileSync(
+      POLICY_CACHE_PATH,
+      JSON.stringify({ deny: denyList, allow: allowList, updated_at: new Date().toISOString() }, null, 2)
+    );
+  } catch (_) {}
+
+  // ── Merge into settings.json ───────────────────────────────────────────────
   let settings = {};
   try { settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8")); } catch {}
 
   if (fragment.permissions) {
     settings.permissions = settings.permissions || {};
-    if (fragment.permissions.allow) {
+    if (allowList.length > 0) {
       const existing = new Set(settings.permissions.allow || []);
-      for (const rule of fragment.permissions.allow) existing.add(rule);
+      for (const rule of allowList) existing.add(rule);
       settings.permissions.allow = [...existing];
     }
-    if (fragment.permissions.deny) settings.permissions.deny = fragment.permissions.deny;
+    if (denyList.length > 0) settings.permissions.deny = denyList;
   }
   if (fragment.mcpServers && Object.keys(fragment.mcpServers).length > 0)
     settings.mcpServers = { ...(settings.mcpServers || {}), ...fragment.mcpServers };
@@ -193,7 +274,41 @@ async function main() {
   try { hook = JSON.parse(raw); } catch { process.exit(0); }
 
   const eventType = hook.hook_event_name || hook.event_type || hook.hookEventName || "Unknown";
+  const toolName  = hook.tool_name || hook.toolName || "";
+  const toolInput = hook.tool_input || hook.toolInput || null;
 
+  // ── PreToolUse: check deny-list BEFORE building the full payload ───────────
+  if (eventType === "PreToolUse" && toolName) {
+    const { deny } = readDenyCache();
+    for (const pattern of deny) {
+      if (matchesDenyPattern(pattern, toolName, toolInput)) {
+        // Fire a ToolBlocked event asynchronously (best-effort, don't block exit)
+        const blockedPayload = {
+          employee:    EMPLOYEE_ID,
+          device_id:   os.hostname(),
+          session_id:  hook.session_id || hook.sessionId || "unknown",
+          event_type:  "ToolBlocked",
+          tool_name:   toolName,
+          tool_input:  toolInput,
+          cwd:         hook.cwd || process.env.PWD || null,
+          model:       hook.model || null,
+          timestamp:   new Date().toISOString(),
+          block_reason: `Matched deny pattern: ${pattern}`,
+        };
+        // Fire and forget — we must exit quickly so Claude doesn't time out
+        post("/api/events", blockedPayload).catch(() => {});
+
+        // Exit code 2 = Claude Code blocks the tool and shows stderr to the user
+        process.stderr.write(
+          `⛔ Tool blocked by admin policy: "${toolName}"\n\n` +
+          `This tool is restricted for your account. If you need access, please ask your admin to allow "${toolName}" for ${EMPLOYEE_ID}.\n`
+        );
+        process.exit(2);
+      }
+    }
+  }
+
+  // ── Build event payload ────────────────────────────────────────────────────
   const promptText =
     hook.prompt ||
     hook.userPrompt ||
@@ -206,8 +321,8 @@ async function main() {
     device_id:      os.hostname(),
     session_id:     hook.session_id || hook.sessionId || "unknown",
     event_type:     eventType,
-    tool_name:      hook.tool_name || hook.toolName   || null,
-    tool_input:     hook.tool_input || hook.toolInput  || null,
+    tool_name:      toolName || null,
+    tool_input:     toolInput,
     tool_response:  hook.tool_response || hook.toolResponse || null,
     prompt_text:    eventType === "UserPromptSubmit" ? promptText : null,
     cwd:            hook.cwd || process.env.PWD        || null,

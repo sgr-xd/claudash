@@ -88,14 +88,31 @@ function PolicyModal({ policy, onClose, onSaved }) {
             />
           </Field>
 
-          <Field label="Deny Rules" hint="One tool/pattern per line. Deny takes precedence over allow.">
+          <Field
+            label="Deny Rules"
+            hint="One pattern per line. Deny takes precedence. The hook agent blocks the tool and shows a custom message to the employee."
+          >
             <textarea
               value={deny}
               onChange={(e) => setDeny(e.target.value)}
               rows={5}
-              placeholder="WebSearch&#10;computer"
+              placeholder={"WebSearch\nBash(curl *)\nmcp__slack__*\nWrite"}
               style={m.textarea}
             />
+            <div style={m.patternHelp}>
+              <span style={m.helpTitle}>Pattern syntax</span>
+              {[
+                ['WebSearch', 'block a specific tool'],
+                ['Bash(curl *)', 'block by tool + input glob'],
+                ['mcp__slack__*', 'block all tools on an MCP server'],
+                ['Write(* .env)', 'block writes to .env files'],
+              ].map(([pat, desc]) => (
+                <div key={pat} style={m.helpRow}>
+                  <code style={m.helpCode}>{pat}</code>
+                  <span style={m.helpDesc}>{desc}</span>
+                </div>
+              ))}
+            </div>
           </Field>
 
           {error && <div style={m.error}>{error}</div>}
@@ -635,4 +652,34 @@ const m = {
     fontWeight: 600,
     cursor: 'pointer',
   },
+  patternHelp: {
+    marginTop: '8px',
+    padding: '10px 12px',
+    background: 'var(--bg-base)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px',
+  },
+  helpTitle: {
+    fontSize: '10px',
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    marginBottom: '3px',
+  },
+  helpRow: { display: 'flex', alignItems: 'baseline', gap: '10px' },
+  helpCode: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    color: 'var(--accent-text)',
+    background: 'var(--accent-dim)',
+    padding: '1px 5px',
+    borderRadius: '3px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  helpDesc: { fontSize: '11px', color: 'var(--text-muted)' },
 }

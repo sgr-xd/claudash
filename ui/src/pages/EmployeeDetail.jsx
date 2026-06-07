@@ -122,6 +122,51 @@ function SkillsPluginsSection({ enabledPlugins }) {
   )
 }
 
+function BlockedToolsSection({ blockedTools }) {
+  if (!blockedTools || blockedTools.length === 0) return null
+
+  return (
+    <div style={{ ...s.card, borderColor: 'rgba(239,68,68,0.3)' }}>
+      <h2 style={{ ...s.cardTitle, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '14px' }}>⛔</span>
+        Blocked Tool Attempts
+      </h2>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={s.table}>
+          <thead>
+            <tr>
+              {['Tool', 'Block Count', 'Last Attempt'].map((h) => (
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {blockedTools.map((row) => (
+              <tr key={row.tool} style={s.tr}>
+                <td style={s.td}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--red)' }}>
+                    {row.tool || '—'}
+                  </span>
+                </td>
+                <td style={{ ...s.td, color: 'var(--red)', fontWeight: 600 }}>
+                  {row.count}
+                </td>
+                <td style={{ ...s.td, color: 'var(--text-muted)', fontSize: '12px' }}>
+                  {row.last_blocked_at
+                    ? parseUTC(row.last_blocked_at).toLocaleString(undefined, {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ToolTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -258,6 +303,12 @@ export default function EmployeeDetail() {
           accent={(data?.active_sessions ?? 0) > 0}
         />
         <StatCard label="Top Tools Tracked" value={(data?.top_tools || []).length} />
+        {(data?.blocked_tools || []).length > 0 && (
+          <StatCard
+            label="Blocked Attempts"
+            value={(data?.blocked_tools || []).reduce((s, r) => s + r.count, 0)}
+          />
+        )}
       </div>
 
       {/* Tool usage chart */}
@@ -301,6 +352,9 @@ export default function EmployeeDetail() {
 
       {/* Skills & Plugins */}
       <SkillsPluginsSection enabledPlugins={data?.enabled_plugins} />
+
+      {/* Blocked tool attempts */}
+      <BlockedToolsSection blockedTools={data?.blocked_tools} />
 
       {/* Recent sessions table */}
       <div style={s.card}>

@@ -12,6 +12,7 @@ const presets = {
   PreToolUse:        { bg: 'var(--yellow-bg)',   color: 'var(--yellow)',  label: 'PreToolUse' },
   PermissionRequest: { bg: 'var(--orange-bg)',   color: 'var(--orange)',  label: 'PermissionRequest' },
   UserPromptSubmit:  { bg: 'var(--purple-bg)',   color: 'var(--purple)',  label: 'UserPromptSubmit' },
+  ToolBlocked: { bg: 'var(--red-bg)',    color: 'var(--red)',    label: 'ToolBlocked' },
   // Generic
   critical: { bg: 'var(--red-bg)',    color: 'var(--red)',    label: 'critical' },
   default:  { bg: 'var(--grey-bg)',   color: 'var(--grey)',   label: '' },

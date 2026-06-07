@@ -61,6 +61,22 @@ def _registered_mcps(email: str) -> list:
     return list(col("sessions").aggregate(pipeline))
 
 
+def _blocked_tools(email: str, limit: int = 20) -> list:
+    """Tools blocked by policy for this employee (ToolBlocked events)."""
+    pipeline = [
+        {"$match": {"employee": email, "event_type": "ToolBlocked"}},
+        {"$group": {"_id": "$tool_name", "count": {"$sum": 1}, "last_blocked_at": {"$max": "$timestamp"}}},
+        {"$sort": {"count": -1}},
+        {"$limit": limit},
+        {"$project": {"tool": "$_id", "count": 1, "last_blocked_at": 1, "_id": 0}},
+    ]
+    results = list(col("events").aggregate(pipeline))
+    for r in results:
+        if r.get("last_blocked_at"):
+            r["last_blocked_at"] = r["last_blocked_at"].isoformat()
+    return results
+
+
 def _enabled_plugins(email: str) -> list:
     """Skills/plugins seen enabled at session start."""
     pipeline = [
@@ -120,6 +136,7 @@ async def get_employee(email: str, request: Request):
     emp["mcp_activity"] = _mcp_activity(email)
     emp["registered_mcps"] = _registered_mcps(email)
     emp["enabled_plugins"] = _enabled_plugins(email)
+    emp["blocked_tools"] = _blocked_tools(email)
 
     recent_sessions = list(
         col("sessions").find({"employee": email}, {"_id": 0}).sort("started_at", DESCENDING).limit(10)

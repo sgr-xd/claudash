@@ -20,8 +20,8 @@ from app.routes import events, employees, sessions, analytics, policy, install, 
 from app.routes import auth as auth_routes
 from app.routes import settings as settings_routes
 
-APP_VERSION = "1.1.0"
-HOOK_AGENT_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
+HOOK_AGENT_VERSION = "1.2.0"
 
 
 class PermissiveHeadersMiddleware(BaseHTTPMiddleware):

@@ -8,7 +8,7 @@ const PAGE_SIZE = 100
 
 const EVENT_TYPES = [
   'SessionStart', 'Stop', 'PostToolUse', 'PreToolUse',
-  'PermissionRequest', 'UserPromptSubmit',
+  'PermissionRequest', 'UserPromptSubmit', 'ToolBlocked',
 ]
 
 function fmtDateTime(ts) {
