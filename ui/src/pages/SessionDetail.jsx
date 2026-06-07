@@ -64,6 +64,62 @@ function matchesSearch(event, q) {
   return fields.some((f) => f && f.toLowerCase().includes(lower))
 }
 
+// ─── Files Touched ────────────────────────────────────────────────────────────
+
+const FILE_TOOLS = new Set(['Edit', 'Write', 'Read', 'MultiEdit', 'NotebookEdit', 'NotebookRead'])
+
+function extractFilePath(event) {
+  if (!FILE_TOOLS.has(event.tool_name)) return null
+  const inp = event.tool_input
+  if (!inp) return null
+  // tool_input is an object with file_path or path key
+  const p = inp.file_path || inp.path || inp.filePath || null
+  return typeof p === 'string' ? p : null
+}
+
+function FilesTouched({ events }) {
+  const files = useMemo(() => {
+    const seen = new Map() // path → {writes, reads}
+    for (const evt of events) {
+      const p = extractFilePath(evt)
+      if (!p) continue
+      if (!seen.has(p)) seen.set(p, { writes: 0, reads: 0 })
+      const entry = seen.get(p)
+      if (evt.tool_name === 'Read' || evt.tool_name === 'NotebookRead') entry.reads++
+      else entry.writes++
+    }
+    return [...seen.entries()]
+      .map(([path, counts]) => ({ path, ...counts }))
+      .sort((a, b) => (b.writes + b.reads) - (a.writes + a.reads))
+  }, [events])
+
+  if (files.length === 0) return null
+
+  // Show just the filename part, tooltip for full path
+  const shortName = (p) => p.split('/').pop() || p
+
+  return (
+    <div style={s.filesCard}>
+      <div style={s.filesTitle}>
+        Files touched
+        <span style={s.fileCount}>{files.length}</span>
+      </div>
+      <div style={s.filesList}>
+        {files.map(({ path, writes, reads }) => (
+          <span key={path} style={s.fileChip} title={path}>
+            {writes > 0 && <span style={{ color: 'var(--accent)', fontSize: '9px', marginRight: '2px' }}>✎</span>}
+            {writes === 0 && reads > 0 && <span style={{ color: 'var(--text-muted)', fontSize: '9px', marginRight: '2px' }}>👁</span>}
+            {shortName(path)}
+            {(writes + reads) > 1 && (
+              <span style={s.fileOps}>{writes + reads}</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Event Row ────────────────────────────────────────────────────────────────
 
 function EventRow({ event }) {
@@ -222,6 +278,9 @@ export default function SessionDetail() {
         <InfoItem label="Duration" value={duration(sess.started_at, sess.ended_at)} />
         <InfoItem label="Events" value={sess.event_count ?? events.length} />
       </div>
+
+      {/* Files touched summary */}
+      <FilesTouched events={events} />
 
       {/* Events */}
       <div style={s.card}>
@@ -467,5 +526,63 @@ const s = {
     wordBreak: 'break-word',
     maxHeight: '400px',
     overflowY: 'auto',
+  },
+  filesCard: {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
+    padding: '14px 20px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '14px',
+    flexWrap: 'wrap',
+  },
+  filesTitle: {
+    fontSize: '11px',
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    paddingTop: '2px',
+  },
+  fileCount: {
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
+    borderRadius: '99px',
+    padding: '1px 6px',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+  },
+  filesList: { display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1 },
+  fileChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    padding: '2px 8px',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    color: 'var(--text-secondary)',
+    cursor: 'default',
+    maxWidth: '220px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  fileOps: {
+    marginLeft: '4px',
+    padding: '0 4px',
+    background: 'var(--bg-base)',
+    borderRadius: '3px',
+    fontSize: '10px',
+    color: 'var(--text-muted)',
+    fontWeight: 600,
   },
 }

@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request
@@ -21,6 +22,7 @@ async def overview(request: Request):
     total_employees = col("employees").count_documents({})
     active_sessions = col("sessions").count_documents({"status": "active"})
     events_today = col("events").count_documents({"timestamp": {"$gte": day_start}})
+    blocks_today = col("events").count_documents({"timestamp": {"$gte": day_start}, "event_type": "ToolBlocked"})
 
     # Top tools today
     top_tools = list(
@@ -91,6 +93,8 @@ async def overview(request: Request):
         "total_employees": total_employees,
         "active_sessions_now": active_sessions,
         "events_today": events_today,
+        "blocks_today": blocks_today,
+        "hook_agent_version": os.getenv("HOOK_AGENT_VERSION", ""),
         "top_tools": top_tools,
         "top_mcps": top_mcps,
         "events_by_hour": events_by_hour,

@@ -231,10 +231,28 @@ function UserManagement() {
 
 function InstallGuide() {
   const base = window.location.origin
+  const [token, setToken] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [tokenLoaded, setTokenLoaded] = useState(false)
 
+  useEffect(() => {
+    api.get('/api/settings/agent-token').then((r) => {
+      if (r?.token) { setToken(r.token); setTokenLoaded(true) }
+    }).catch(() => {})
+  }, [])
+
+  function copyToken() {
+    if (!token) return
+    navigator.clipboard.writeText(token).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  const displayToken = tokenLoaded ? token : '<your DASHBOARD_TOKEN>'
   const snippet = `# On each employee machine:
 CLAUDASH_URL=${base} \\
-CLAUDASH_TOKEN=<your DASHBOARD_TOKEN> \\
+CLAUDASH_TOKEN=${displayToken} \\
 EMPLOYEE_ID=alice@company.com \\
   bash <(curl -sSL ${base}/install/install.sh)
 
@@ -248,6 +266,21 @@ EMPLOYEE_ID=alice@company.com \\
         Run this once on each employee machine. The hook agent writes to{' '}
         <code style={s.code}>~/.claude/settings.json</code> and auto-updates on every session start.
       </p>
+
+      {/* Agent token copy */}
+      <div style={s.tokenBox}>
+        <div style={s.tokenLabel}>Agent Token (DASHBOARD_TOKEN)</div>
+        <div style={s.tokenRow}>
+          <code style={s.tokenValue}>{tokenLoaded ? token : '—'}</code>
+          <button onClick={copyToken} disabled={!tokenLoaded} style={s.copyBtn}>
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+          Set this as <code style={s.code}>CLAUDASH_TOKEN</code> on each employee machine.
+        </div>
+      </div>
+
       <pre style={s.codePre}>{snippet}</pre>
 
       <div style={{ marginTop: '20px' }}>
@@ -336,4 +369,9 @@ const s = {
   deleteBtn: { padding: '4px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-sm)', color: '#ef4444', fontSize: '12px', cursor: 'pointer' },
   codePre: { fontFamily: 'var(--font-mono)', fontSize: '12px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px', overflowX: 'auto', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   code: { fontFamily: 'var(--font-mono)', fontSize: '11px', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '3px', color: 'var(--text-secondary)' },
+  tokenBox: { background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: '16px' },
+  tokenLabel: { fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' },
+  tokenRow: { display: 'flex', alignItems: 'center', gap: '10px' },
+  tokenValue: { fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  copyBtn: { padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 },
 }

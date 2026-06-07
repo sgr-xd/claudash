@@ -23,6 +23,9 @@ from app.routes import settings as settings_routes
 APP_VERSION = "1.2.0"
 HOOK_AGENT_VERSION = "1.2.0"
 
+# Expose for analytics/overview without importing main from other modules
+os.environ.setdefault("HOOK_AGENT_VERSION", HOOK_AGENT_VERSION)
+
 
 class PermissiveHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

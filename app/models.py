@@ -16,6 +16,7 @@ class HookEvent(BaseModel):
     cwd: Optional[str] = None
     model: Optional[str] = None
     claude_version: Optional[str] = None
+    agent_version: Optional[str] = None       # hook agent version (e.g. "1.2.0")
     timestamp: Optional[str] = None
     # Captured on SessionStart from ~/.claude/settings.json
     mcp_servers: Optional[List[str]] = None   # registered MCP server names

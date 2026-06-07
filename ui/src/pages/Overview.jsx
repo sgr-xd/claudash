@@ -176,6 +176,13 @@ export default function Overview() {
           value={activeMCPs}
           sub={activeMCPs > 0 ? `${activeMCPs} server${activeMCPs !== 1 ? 's' : ''} seen today` : 'none today'}
         />
+        {(overview?.blocks_today ?? 0) > 0 && (
+          <StatCard
+            label="Blocks Today"
+            value={overview.blocks_today}
+            sub="policy denials"
+          />
+        )}
       </div>
 
       {/* ── Events by hour chart ── */}
@@ -250,44 +257,66 @@ export default function Overview() {
             <table style={s.table}>
               <thead>
                 <tr>
-                  {['Email', 'Last Seen', 'Sessions', 'Active', 'Top Tool'].map((h) => (
+                  {['Email', 'Last Seen', 'Sessions', 'Active', 'Top Tool', 'Hook'].map((h) => (
                     <th key={h} style={s.th}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp.email} style={s.tr}>
-                    <td style={s.td}>
-                      <Link to={`/employees/${encodeURIComponent(emp.email)}`} style={s.empLink}>
-                        {emp.email}
-                      </Link>
-                    </td>
-                    <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
-                      {fmtLastSeen(emp.last_seen)}
-                    </td>
-                    <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
-                      {emp.total_sessions ?? 0}
-                    </td>
-                    <td style={s.td}>
-                      {emp.active_sessions > 0 ? (
-                        <span style={s.activeDot} title={`${emp.active_sessions} active`}>
-                          <span style={s.greenDot} />
-                          {emp.active_sessions}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>—</span>
-                      )}
-                    </td>
-                    <td style={s.td}>
-                      {emp.top_tools?.[0] ? (
-                        <span style={s.toolPill}>{emp.top_tools[0].name}</span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {employees.map((emp) => {
+                  const hookOutdated = emp.hook_version && overview?.hook_agent_version &&
+                    emp.hook_version !== overview.hook_agent_version
+                  return (
+                    <tr key={emp.email} style={s.tr}>
+                      <td style={s.td}>
+                        <Link to={`/employees/${encodeURIComponent(emp.email)}`} style={s.empLink}>
+                          {emp.email}
+                        </Link>
+                      </td>
+                      <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
+                        {fmtLastSeen(emp.last_seen)}
+                      </td>
+                      <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
+                        {emp.total_sessions ?? 0}
+                      </td>
+                      <td style={s.td}>
+                        {emp.active_sessions > 0 ? (
+                          <span style={s.activeDot} title={`${emp.active_sessions} active`}>
+                            <span style={s.greenDot} />
+                            {emp.active_sessions}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={s.td}>
+                        {emp.top_tools?.[0] ? (
+                          <span style={s.toolPill}>{emp.top_tools[0].name}</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={s.td}>
+                        {emp.hook_version ? (
+                          <span style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            color: hookOutdated ? 'var(--red)' : 'var(--green)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                            title={hookOutdated ? `Outdated — server is ${overview.hook_agent_version}` : 'Up to date'}
+                          >
+                            {hookOutdated ? '⚠ ' : ''}{emp.hook_version}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

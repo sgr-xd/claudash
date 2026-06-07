@@ -250,6 +250,67 @@ function RuleModal({ rule, channels, onClose, onSave }) {
   )
 }
 
+// ─── Alert Templates ──────────────────────────────────────────────────────────
+
+const ALERT_TEMPLATES = [
+  {
+    name: 'Policy block detected',
+    description: 'Fires whenever an employee tries to use a tool that is blocked by policy.',
+    condition: { event_types: ['ToolBlocked'], employees: [], tool_names: [], input_contains: [], mcp_only: false },
+    cooldown_seconds: 60,
+  },
+  {
+    name: 'Network command in Bash',
+    description: 'Detects curl, wget, or nc used inside Bash — common in data exfiltration or unvetted downloads.',
+    condition: { event_types: ['PostToolUse'], employees: [], tool_names: ['Bash'], input_contains: ['curl ', 'wget ', ' nc '], mcp_only: false },
+    cooldown_seconds: 300,
+  },
+  {
+    name: 'Slack MCP used',
+    description: 'Any call to the Slack MCP server (sending messages, reading channels, etc.).',
+    condition: { event_types: ['PostToolUse'], employees: [], tool_names: ['mcp__slack__*'], input_contains: [], mcp_only: true },
+    cooldown_seconds: 0,
+  },
+  {
+    name: 'Sensitive file written',
+    description: 'Detects writes to .env, credentials, or secrets files.',
+    condition: { event_types: ['PostToolUse'], employees: [], tool_names: ['Write', 'Edit'], input_contains: ['.env', 'credentials', 'secrets', 'private_key'], mcp_only: false },
+    cooldown_seconds: 300,
+  },
+  {
+    name: 'Sudo or root command',
+    description: 'Bash commands that use sudo, su, or chown — may indicate privilege escalation.',
+    condition: { event_types: ['PostToolUse'], employees: [], tool_names: ['Bash'], input_contains: ['sudo ', 'su -', 'chown ', 'chmod 777'], mcp_only: false },
+    cooldown_seconds: 300,
+  },
+]
+
+function TemplatesPanel({ onUse }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div style={s.templatesWrap}>
+      <button onClick={() => setOpen((o) => !o)} style={s.templatesTrigger}>
+        {open ? '▲' : '▼'} Starter templates ({ALERT_TEMPLATES.length})
+      </button>
+      {open && (
+        <div style={s.templatesList}>
+          {ALERT_TEMPLATES.map((t) => (
+            <div key={t.name} style={s.templateRow}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{t.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{t.description}</div>
+              </div>
+              <button onClick={() => { onUse(t); setOpen(false) }} style={s.useTemplateBtn}>
+                Use →
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TextareaField({ label, value, onChange, placeholder, rows = 3 }) {
   return (
     <div style={{ marginBottom: '12px' }}>
@@ -394,8 +455,9 @@ export default function Alerts() {
       {/* Rules tab */}
       {tab === 'rules' && (
         <div style={s.cardList}>
+          <TemplatesPanel onUse={(t) => setRuleModal({ ...t, channel_ids: [], enabled: true })} />
           {rules.length === 0 ? (
-            <EmptyState msg="No alert rules. Add one to get started." cta="+ Add Rule" onClick={() => setRuleModal({})} />
+            <EmptyState msg="No alert rules yet — use a template above or add one manually." cta="+ Add Rule" onClick={() => setRuleModal({})} />
           ) : rules.map((rule) => (
             <div key={rule.id} style={{ ...s.ruleCard, opacity: rule.enabled ? 1 : 0.55 }}>
               <div style={s.ruleTop}>
@@ -544,6 +606,12 @@ const s = {
   saveBtn: { padding: '8px 20px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
   cancelBtn: { padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' },
   testBtn: { padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' },
+  // Templates
+  templatesWrap: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' },
+  templatesTrigger: { width: '100%', padding: '12px 18px', background: 'none', border: 'none', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer', letterSpacing: '0.04em' },
+  templatesList: { borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column' },
+  templateRow: { display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 18px', borderBottom: '1px solid var(--border)' },
+  useTemplateBtn: { padding: '5px 12px', background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', color: 'var(--accent-text)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 },
   // History table
   card: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' },
   emptyInCard: { padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' },

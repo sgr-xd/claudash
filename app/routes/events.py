@@ -87,16 +87,20 @@ async def ingest_event(event: HookEvent, request: Request):
         "cwd": event.cwd,
         "model": event.model,
         "claude_version": event.claude_version,
+        "agent_version": event.agent_version,
         "timestamp": now,
     }
 
     col("events").insert_one(doc)
 
-    # Upsert employee record
+    # Upsert employee record — also track hook agent version
+    emp_set: dict = {"last_seen": now, "device_id": event.device_id}
+    if event.agent_version:
+        emp_set["hook_version"] = event.agent_version
     col("employees").update_one(
         {"email": event.employee},
         {
-            "$set": {"last_seen": now, "device_id": event.device_id},
+            "$set": emp_set,
             "$setOnInsert": {"registered_at": now},
         },
         upsert=True,

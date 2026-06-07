@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
@@ -46,3 +48,12 @@ async def update_settings(body: SettingsUpdate, request: Request):
         settings_store.invalidate()
 
     return {**_DEFAULTS, **settings_store.get_settings()}
+
+
+@router.get("/settings/agent-token")
+async def get_agent_token(request: Request):
+    """Return the DASHBOARD_TOKEN so admins can copy it into the install command."""
+    if not check_auth(request):
+        return Response("Unauthorized", status_code=401)
+    token = os.getenv("DASHBOARD_TOKEN", "")
+    return {"token": token, "hint": "Use this as CLAUDASH_TOKEN in the install command."}

@@ -328,6 +328,7 @@ async function main() {
     cwd:            hook.cwd || process.env.PWD        || null,
     model:          hook.model                         || null,
     claude_version: hook.claude_version                || null,
+    agent_version:  AGENT_VERSION,
     timestamp:      new Date().toISOString(),
   };
 
@@ -342,6 +343,16 @@ async function main() {
 
   if (eventType === "SessionStart") {
     await Promise.all([syncPolicy(), checkAndUpdate()]);
+
+    // Print active restrictions to the employee's terminal so they know upfront
+    const { deny } = readDenyCache();
+    if (deny.length > 0) {
+      process.stdout.write(
+        `\nclaudash: ${deny.length} tool restriction${deny.length !== 1 ? "s" : ""} active for ${EMPLOYEE_ID}:\n` +
+        deny.map((p) => `  ⛔ ${p}`).join("\n") +
+        "\n\n"
+      );
+    }
   }
 
   await postPromise;
