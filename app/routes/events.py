@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import csv
 import io
@@ -14,24 +16,29 @@ from pymongo import DESCENDING
 from app.auth import check_auth
 from app.db import col
 from app.models import HookEvent
+from app import settings_store
 
 router = APIRouter()
 
-# Feature flag: set CLAUDASH_CAPTURE_PROMPTS=true to store UserPromptSubmit text
-_CAPTURE_PROMPTS = os.getenv("CLAUDASH_CAPTURE_PROMPTS", "false").lower() == "true"
+# Env-var default for capture_prompts (can be overridden from DB settings)
+_CAPTURE_PROMPTS_DEFAULT = os.getenv("CLAUDASH_CAPTURE_PROMPTS", "false").lower() == "true"
 
 # SSE subscriber queues
-_subscribers: list[queue.Queue] = []
+_subscribers: list = []
 _sub_lock = threading.Lock()
 
-# High-volume tools whose inputs aren't useful to store.
-# Bash, MCP, and other interesting tools keep their full inputs.
+# High-volume tools whose inputs aren't useful to store
 _STRIP_INPUT = {
     "Read", "Write", "Edit", "MultiEdit",
     "LS", "Glob", "Grep",
     "TodoRead", "TodoWrite",
     "NotebookRead", "NotebookEdit",
 }
+
+
+def _should_capture_prompts() -> bool:
+    """Dynamic: reads from DB settings (30s cache), falls back to env var."""
+    return settings_store.get("capture_prompts", _CAPTURE_PROMPTS_DEFAULT)
 
 
 def _broadcast(event: dict):
@@ -45,7 +52,6 @@ def _broadcast(event: dict):
 
 
 def _fire_alerts_bg(event_doc: dict):
-    """Evaluate alert rules in a background thread — never blocks ingest."""
     def _run():
         try:
             from app.alerts.engine import evaluate_and_fire
@@ -63,9 +69,8 @@ async def ingest_event(event: HookEvent, request: Request):
     now = datetime.now(timezone.utc)
     keep_input = event.tool_name not in _STRIP_INPUT if event.tool_name else True
 
-    # Capture prompt text only if feature flag is enabled
     prompt_text = None
-    if _CAPTURE_PROMPTS and event.event_type == "UserPromptSubmit":
+    if _should_capture_prompts() and event.event_type == "UserPromptSubmit":
         prompt_text = event.prompt_text or (
             event.tool_input.get("prompt") if isinstance(event.tool_input, dict) else None
         )
@@ -99,7 +104,6 @@ async def ingest_event(event: HookEvent, request: Request):
 
     # Session tracking
     if event.event_type == "SessionStart":
-        # $set always runs — handles both new sessions and resumes (flips ended → active)
         sess_update: dict = {
             "$set": {
                 "status": "active",
@@ -118,6 +122,12 @@ async def ingest_event(event: HookEvent, request: Request):
         }
         if event.model:
             sess_update["$addToSet"] = {"models_used": event.model}
+        # Store registered MCPs and plugins from settings.json (sent by hook agent)
+        if event.mcp_servers is not None:
+            sess_update["$set"]["mcp_servers"] = event.mcp_servers
+        if event.enabled_plugins is not None:
+            sess_update["$set"]["enabled_plugins"] = event.enabled_plugins
+
         col("sessions").update_one(
             {"session_id": event.session_id},
             sess_update,
@@ -148,12 +158,8 @@ async def ingest_event(event: HookEvent, request: Request):
 
         col("sessions").update_one({"session_id": event.session_id}, update)
 
-    # Fire alert rules in background (non-blocking)
     _fire_alerts_bg({**doc, "timestamp": now.isoformat()})
-
-    # Broadcast to SSE clients
     _broadcast({"type": "event", "data": {**doc, "timestamp": now.isoformat()}})
-
     return {"ok": True}
 
 
@@ -169,54 +175,20 @@ async def list_events(
     page: int = 0,
     limit: int = 100,
 ):
-    """Paginated event log with filters. All params optional and combinable."""
     if not check_auth(request):
         return Response("Unauthorized", status_code=401)
 
-    filt: dict = {}
-    if employee:
-        filt["employee"] = employee
-    if event_type:
-        filt["event_type"] = event_type
-    if tool_name:
-        filt["tool_name"] = {"$regex": tool_name, "$options": "i"}
-    if date_from or date_to:
-        ts_filt: dict = {}
-        if date_from:
-            ts_filt["$gte"] = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
-        if date_to:
-            ts_filt["$lte"] = (
-                datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
-                + timedelta(days=1)
-            )
-        filt["timestamp"] = ts_filt
-    if search:
-        filt["$or"] = [
-            {"tool_name": {"$regex": search, "$options": "i"}},
-            {"employee": {"$regex": search, "$options": "i"}},
-            {"cwd": {"$regex": search, "$options": "i"}},
-            {"prompt_text": {"$regex": search, "$options": "i"}},
-        ]
-
+    filt = _build_filter(employee, event_type, tool_name, date_from, date_to, search)
     skip = page * limit
     total = col("events").count_documents(filt)
     events_list = list(
-        col("events")
-        .find(filt, {"_id": 0})
-        .sort("timestamp", DESCENDING)
-        .skip(skip)
-        .limit(limit)
+        col("events").find(filt, {"_id": 0}).sort("timestamp", DESCENDING).skip(skip).limit(limit)
     )
     for e in events_list:
         if e.get("timestamp"):
             e["timestamp"] = e["timestamp"].isoformat()
 
-    return {
-        "events": events_list,
-        "total": total,
-        "page": page,
-        "pages": max(1, -(-total // limit)),
-    }
+    return {"events": events_list, "total": total, "page": page, "pages": max(1, -(-total // limit))}
 
 
 @router.get("/events/export")
@@ -231,39 +203,12 @@ async def export_events(
     search: str = "",
     limit: int = 10_000,
 ):
-    """Export audit log as JSON or CSV (max 10k rows)."""
     if not check_auth(request):
         return Response("Unauthorized", status_code=401)
 
-    filt: dict = {}
-    if employee:
-        filt["employee"] = employee
-    if event_type:
-        filt["event_type"] = event_type
-    if tool_name:
-        filt["tool_name"] = {"$regex": tool_name, "$options": "i"}
-    if date_from or date_to:
-        ts_filt: dict = {}
-        if date_from:
-            ts_filt["$gte"] = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
-        if date_to:
-            ts_filt["$lte"] = (
-                datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
-                + timedelta(days=1)
-            )
-        filt["timestamp"] = ts_filt
-    if search:
-        filt["$or"] = [
-            {"tool_name": {"$regex": search, "$options": "i"}},
-            {"employee": {"$regex": search, "$options": "i"}},
-            {"cwd": {"$regex": search, "$options": "i"}},
-        ]
-
+    filt = _build_filter(employee, event_type, tool_name, date_from, date_to, search)
     rows = list(
-        col("events")
-        .find(filt, {"_id": 0})
-        .sort("timestamp", DESCENDING)
-        .limit(min(limit, 10_000))
+        col("events").find(filt, {"_id": 0}).sort("timestamp", DESCENDING).limit(min(limit, 10_000))
     )
     for r in rows:
         if r.get("timestamp"):
@@ -278,20 +223,17 @@ async def export_events(
         writer = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         for r in rows:
-            # Flatten tool_input to string for CSV
             if "tool_input" in r and r["tool_input"]:
                 r["tool_input"] = json.dumps(r["tool_input"])
             writer.writerow(r)
-        content = buf.getvalue().encode("utf-8")
         return Response(
-            content=content,
+            content=buf.getvalue().encode("utf-8"),
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename=claudash-audit-{ts}.csv"},
         )
     else:
-        content = json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
         return Response(
-            content=content,
+            content=json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8"),
             media_type="application/json",
             headers={"Content-Disposition": f"attachment; filename=claudash-audit-{ts}.json"},
         )
@@ -328,3 +270,33 @@ async def event_stream(request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+def _build_filter(employee, event_type, tool_name, date_from, date_to, search) -> dict:
+    filt: dict = {}
+    if employee:
+        filt["employee"] = employee
+    if event_type:
+        filt["event_type"] = event_type
+    if tool_name:
+        filt["tool_name"] = {"$regex": tool_name, "$options": "i"}
+    if date_from or date_to:
+        ts_filt: dict = {}
+        if date_from:
+            ts_filt["$gte"] = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        if date_to:
+            ts_filt["$lte"] = (
+                datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+                + timedelta(days=1)
+            )
+        filt["timestamp"] = ts_filt
+    if search:
+        filt["$or"] = [
+            {"tool_name": {"$regex": search, "$options": "i"}},
+            {"employee": {"$regex": search, "$options": "i"}},
+            {"cwd": {"$regex": search, "$options": "i"}},
+            {"prompt_text": {"$regex": search, "$options": "i"}},
+        ]
+    return filt

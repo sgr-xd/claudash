@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pymongo import MongoClient, ASCENDING, DESCENDING
 
@@ -42,6 +44,7 @@ def ensure_indexes():
     db["sessions"].create_index([("employee", ASCENDING), ("started_at", DESCENDING)])
     db["sessions"].create_index([("session_id", ASCENDING)], unique=True)
     db["sessions"].create_index([("status", ASCENDING), ("last_event_at", ASCENDING)])
+    db["sessions"].create_index([("status", ASCENDING), ("started_at", DESCENDING)])
 
     db["employees"].create_index([("email", ASCENDING)], unique=True)
     db["policies"].create_index([("employee_id", ASCENDING)], unique=True)
@@ -63,3 +66,34 @@ def ensure_indexes():
     )
     db["alert_history"].create_index([("rule_id", ASCENDING), ("fired_at", DESCENDING)])
     db["alert_history"].create_index([("employee", ASCENDING), ("fired_at", DESCENDING)])
+
+    # Users collection
+    db["users"].create_index([("username", ASCENDING)], unique=True)
+
+    # Settings — single document, no special index needed
+
+    # Seed initial admin user from env vars if no users exist yet
+    _seed_admin(db)
+
+
+def _seed_admin(db):
+    """Create the initial admin user from env vars on first startup."""
+    admin_user = os.getenv("CLAUDASH_ADMIN_USER", "admin")
+    admin_pass = os.getenv("CLAUDASH_ADMIN_PASS", "")
+    if not admin_pass:
+        return
+    if db["users"].count_documents({}) > 0:
+        return  # users already exist — don't overwrite
+    try:
+        import bcrypt
+        pw_hash = bcrypt.hashpw(admin_pass.encode(), bcrypt.gensalt()).decode()
+        from datetime import datetime, timezone
+        db["users"].insert_one({
+            "username": admin_user,
+            "password_hash": pw_hash,
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc),
+        })
+        print(f"[db] Seeded admin user: {admin_user}", flush=True)
+    except Exception as e:
+        print(f"[db] Could not seed admin user: {e}", flush=True)

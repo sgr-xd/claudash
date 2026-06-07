@@ -1,21 +1,32 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
 
 const navItems = [
-  { to: '/',          label: 'Overview',   icon: HomeIcon },
-  { to: '/audit',     label: 'Audit Log',  icon: ListIcon },
-  { to: '/analytics', label: 'Analytics',  icon: ChartIcon },
-  { to: '/alerts',    label: 'Alerts',     icon: BellIcon },
-  { to: '/policy',    label: 'Policy',     icon: ShieldIcon },
+  { to: '/',          label: 'Overview',  icon: HomeIcon },
+  { to: '/sessions',  label: 'Sessions',  icon: SessionsIcon },
+  { to: '/audit',     label: 'Audit Log', icon: ListIcon },
+  { to: '/analytics', label: 'Analytics', icon: ChartIcon },
+  { to: '/alerts',    label: 'Alerts',    icon: BellIcon },
+  { to: '/policy',    label: 'Policy',    icon: ShieldIcon },
+  { to: '/settings',  label: 'Settings',  icon: GearIcon },
 ]
 
-/* ── SVG Icons ─────────────────────────────────────────────────────────── */
 function HomeIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
       <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  )
+}
+
+function SessionsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <line x1="3" y1="9" x2="21" y2="9"/>
+      <line x1="9" y1="21" x2="9" y2="9"/>
     </svg>
   )
 }
@@ -58,6 +69,15 @@ function ShieldIcon() {
   )
 }
 
+function GearIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  )
+}
+
 function LogoutIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -68,24 +88,12 @@ function LogoutIcon() {
   )
 }
 
-/* Claude diamond logo mark */
 function ClaudeMark({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-      <path
-        d="M28 4L52 18V38L28 52L4 38V18L28 4Z"
-        fill="var(--accent)"
-        opacity="0.18"
-      />
-      <path
-        d="M28 10L46 21V35L28 46L10 35V21L28 10Z"
-        fill="var(--accent)"
-        opacity="0.32"
-      />
-      <path
-        d="M28 18L38 24V32L28 38L18 32V24L28 18Z"
-        fill="var(--accent)"
-      />
+      <path d="M28 4L52 18V38L28 52L4 38V18L28 4Z" fill="var(--accent)" opacity="0.18"/>
+      <path d="M28 10L46 21V35L28 46L10 35V21L28 10Z" fill="var(--accent)" opacity="0.32"/>
+      <path d="M28 18L38 24V32L28 38L18 32V24L28 18Z" fill="var(--accent)"/>
     </svg>
   )
 }
@@ -95,7 +103,6 @@ export default function Sidebar() {
 
   return (
     <aside style={s.sidebar}>
-      {/* Brand */}
       <div style={s.brand}>
         <ClaudeMark size={30} />
         <div>
@@ -104,7 +111,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
       <nav style={s.nav}>
         <div style={s.navSection}>WORKSPACE</div>
         {navItems.map(({ to, label, icon: Icon }) => (
@@ -112,10 +118,7 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={to === '/'}
-            style={({ isActive }) => ({
-              ...s.navItem,
-              ...(isActive ? s.navItemActive : {}),
-            })}
+            style={({ isActive }) => ({ ...s.navItem, ...(isActive ? s.navItemActive : {}) })}
           >
             <span style={s.navIcon}><Icon /></span>
             {label}
@@ -123,7 +126,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div style={s.footer}>
         <div style={s.footerInfo}>
           <div style={s.footerDot} />
@@ -139,104 +141,17 @@ export default function Sidebar() {
 }
 
 const s = {
-  sidebar: {
-    width: 'var(--sidebar-width)',
-    minWidth: 'var(--sidebar-width)',
-    height: '100vh',
-    background: 'var(--bg-sidebar)',
-    borderRight: '1px solid var(--border)',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'sticky',
-    top: 0,
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '11px',
-    padding: '22px 18px 18px',
-    borderBottom: '1px solid var(--border)',
-  },
-  brandName: {
-    fontSize: '15px',
-    fontWeight: 700,
-    letterSpacing: '-0.3px',
-    color: 'var(--text-primary)',
-    lineHeight: 1.2,
-  },
-  brandSub: {
-    fontSize: '11px',
-    color: 'var(--text-muted)',
-    marginTop: '1px',
-  },
-  nav: {
-    flex: 1,
-    padding: '14px 10px 10px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1px',
-    overflowY: 'auto',
-  },
-  navSection: {
-    fontSize: '10px',
-    fontWeight: 600,
-    color: 'var(--text-muted)',
-    letterSpacing: '0.08em',
-    padding: '6px 10px 8px',
-    textTransform: 'uppercase',
-  },
-  navItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '9px',
-    padding: '7px 10px',
-    borderRadius: 'var(--radius-sm)',
-    color: 'var(--text-secondary)',
-    fontSize: '13.5px',
-    fontWeight: 450,
-    textDecoration: 'none',
-    transition: 'background 0.1s, color 0.1s',
-  },
-  navItemActive: {
-    background: 'var(--accent-dim)',
-    color: 'var(--accent-text)',
-  },
-  navIcon: {
-    opacity: 0.75,
-    display: 'flex',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  footer: {
-    padding: '12px 14px',
-    borderTop: '1px solid var(--border)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  footerInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-  },
-  footerDot: {
-    width: '7px',
-    height: '7px',
-    borderRadius: '50%',
-    background: 'var(--green)',
-    boxShadow: '0 0 6px var(--green)',
-  },
-  logoutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '5px 8px',
-    background: 'none',
-    border: 'none',
-    color: 'var(--text-muted)',
-    fontSize: '12px',
-    borderRadius: 'var(--radius-sm)',
-    cursor: 'pointer',
-    transition: 'color 0.1s',
-  },
+  sidebar: { width: 'var(--sidebar-width)', minWidth: 'var(--sidebar-width)', height: '100vh', background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0 },
+  brand: { display: 'flex', alignItems: 'center', gap: '11px', padding: '22px 18px 18px', borderBottom: '1px solid var(--border)' },
+  brandName: { fontSize: '15px', fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--text-primary)', lineHeight: 1.2 },
+  brandSub: { fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' },
+  nav: { flex: 1, padding: '14px 10px 10px', display: 'flex', flexDirection: 'column', gap: '1px', overflowY: 'auto' },
+  navSection: { fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.08em', padding: '6px 10px 8px', textTransform: 'uppercase' },
+  navItem: { display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 10px', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', fontSize: '13.5px', fontWeight: 450, textDecoration: 'none', transition: 'background 0.1s, color 0.1s' },
+  navItemActive: { background: 'var(--accent-dim)', color: 'var(--accent-text)' },
+  navIcon: { opacity: 0.75, display: 'flex', alignItems: 'center', flexShrink: 0 },
+  footer: { padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  footerInfo: { display: 'flex', alignItems: 'center', gap: '6px' },
+  footerDot: { width: '7px', height: '7px', borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 6px var(--green)' },
+  logoutBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
 }

@@ -7,11 +7,11 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3365'
  */
 export function parseUTC(ts) {
   if (!ts) return null
-  if (ts instanceof Date) return ts                      // already a Date
-  if (typeof ts === 'number') return new Date(ts)        // unix ms
-  if (typeof ts !== 'string') return new Date(ts)        // fallback
+  if (ts instanceof Date) return ts
+  if (typeof ts === 'number') return new Date(ts)
+  if (typeof ts !== 'string') return new Date(ts)
   if (ts.endsWith('Z') || ts.includes('+')) return new Date(ts)
-  return new Date(ts + 'Z')                              // naive UTC from backend
+  return new Date(ts + 'Z')
 }
 
 function getToken() {
@@ -46,27 +46,60 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get: (path) => request(path),
-  post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
-  put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
-  patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: (path) => request(path, { method: 'DELETE' }),
+  get:    (path)        => request(path),
+  post:   (path, body)  => request(path, { method: 'POST',   body: JSON.stringify(body) }),
+  put:    (path, body)  => request(path, { method: 'PUT',    body: JSON.stringify(body) }),
+  patch:  (path, body)  => request(path, { method: 'PATCH',  body: JSON.stringify(body) }),
+  delete: (path)        => request(path, { method: 'DELETE' }),
 }
 
-// SSE helper — returns an EventSource (caller manages lifecycle)
+/**
+ * SSE helper with automatic exponential-backoff reconnect.
+ * Returns a controller object with a `.close()` method.
+ *
+ * onEvent(data)  — called with the parsed JSON payload on each message
+ * onError(err)   — called on connection errors (optional)
+ */
 export function openEventStream(onEvent, onError) {
   const token = getToken()
-  // SSE doesn't support custom headers natively; pass token as query param
   const url = `${BASE_URL}/api/events/stream?token=${encodeURIComponent(token)}`
-  const es = new EventSource(url)
-  es.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data)
-      onEvent(data)
-    } catch (_) {
-      onEvent(e.data)
+
+  let es = null
+  let retryDelay = 1000   // start at 1s, doubles up to 30s
+  let closed = false
+
+  function connect() {
+    if (closed) return
+
+    es = new EventSource(url)
+
+    es.onmessage = (e) => {
+      retryDelay = 1000   // reset backoff on successful message
+      try {
+        onEvent(JSON.parse(e.data))
+      } catch (_) {
+        onEvent(e.data)
+      }
+    }
+
+    es.onerror = (err) => {
+      if (closed) return
+      if (onError) onError(err)
+      es.close()
+      // Reconnect with exponential backoff (cap at 30s)
+      setTimeout(() => {
+        retryDelay = Math.min(retryDelay * 2, 30_000)
+        connect()
+      }, retryDelay)
     }
   }
-  es.onerror = onError || (() => {})
-  return es
+
+  connect()
+
+  return {
+    close() {
+      closed = true
+      if (es) es.close()
+    },
+  }
 }

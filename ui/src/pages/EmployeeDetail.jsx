@@ -40,6 +40,88 @@ function shortCwd(cwd) {
   return parts.slice(-2).join('/')
 }
 
+function McpActivitySection({ mcpActivity, registeredMcps }) {
+  const hasMcpActivity = mcpActivity && mcpActivity.length > 0
+  const hasRegistered = registeredMcps && registeredMcps.length > 0
+  if (!hasMcpActivity && !hasRegistered) return null
+
+  // Build unified map: key = server name
+  const map = {}
+
+  ;(registeredMcps || []).forEach(({ name, sessions }) => {
+    map[name] = { server: name, calls: 0, tools: [], registered: true, sessions: sessions ?? 0 }
+  })
+
+  ;(mcpActivity || []).forEach(({ server, calls, tools }) => {
+    if (!map[server]) {
+      map[server] = { server, calls: 0, tools: [], registered: false, sessions: 0 }
+    }
+    map[server].calls = calls ?? 0
+    map[server].tools = tools || []
+  })
+
+  const rows = Object.values(map).sort((a, b) => b.calls - a.calls)
+
+  return (
+    <div style={s.card}>
+      <h2 style={s.cardTitle}>MCP Server Activity</h2>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={s.table}>
+          <thead>
+            <tr>
+              {['Server', 'Calls', 'Unique Tools', 'Registered'].map((h) => (
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.server} style={s.tr}>
+                <td style={s.td}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-primary)' }}>
+                    {row.server}
+                  </span>
+                </td>
+                <td style={{ ...s.td, color: row.calls > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                  {row.calls}
+                </td>
+                <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
+                  {row.tools.length > 0 ? row.tools.length : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={s.td}>
+                  {row.registered
+                    ? <span style={{ color: 'var(--green)', fontSize: '14px' }}>&#10003;</span>
+                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function SkillsPluginsSection({ enabledPlugins }) {
+  if (!enabledPlugins || enabledPlugins.length === 0) return null
+
+  return (
+    <div style={s.card}>
+      <h2 style={s.cardTitle}>Skills &amp; Plugins</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        {enabledPlugins.map((plugin) => (
+          <span key={plugin.name} style={sChip.base}>
+            <span style={sChip.name}>{plugin.name}</span>
+            {plugin.sessions != null && (
+              <span style={sChip.count}>{plugin.sessions}</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ToolTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -211,6 +293,15 @@ export default function EmployeeDetail() {
         </div>
       )}
 
+      {/* MCP Server Activity */}
+      <McpActivitySection
+        mcpActivity={data?.mcp_activity}
+        registeredMcps={data?.registered_mcps}
+      />
+
+      {/* Skills & Plugins */}
+      <SkillsPluginsSection enabledPlugins={data?.enabled_plugins} />
+
       {/* Recent sessions table */}
       <div style={s.card}>
         <h2 style={s.cardTitle}>Recent Sessions</h2>
@@ -244,7 +335,7 @@ export default function EmployeeDetail() {
                       {fmtDate(sess.started_at)}
                     </td>
                     <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
-                      {duration(sess.started_at, sess.ended_at)}
+                      {duration(sess.started_at, sess.ended_at ?? sess.last_event_at)}
                     </td>
                     <td style={{ ...s.td, color: 'var(--text-secondary)' }}>
                       {sess.event_count ?? 0}
@@ -360,6 +451,33 @@ const s = {
     fontFamily: 'var(--font-mono)',
     fontSize: '12px',
     color: 'var(--accent)',
+  },
+}
+
+const sChip = {
+  base: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 10px',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
+    borderRadius: '99px',
+    fontSize: '12px',
+    color: 'var(--text-secondary)',
+  },
+  name: {
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+  },
+  count: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: '99px',
+    padding: '0px 5px',
+    fontVariantNumeric: 'tabular-nums',
   },
 }
 

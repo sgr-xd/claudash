@@ -1,4 +1,5 @@
-import json
+from __future__ import annotations
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
@@ -14,8 +15,9 @@ router = APIRouter()
 
 def _serialize_policy(p: dict) -> dict:
     p.pop("_id", None)
-    if p.get("updated_at"):
-        p["updated_at"] = p["updated_at"].isoformat()
+    for f in ("updated_at", "last_fetched_at"):
+        if p.get(f):
+            p[f] = p[f].isoformat()
     return p
 
 
@@ -31,28 +33,37 @@ async def list_policies(request: Request):
 @router.get("/policy/{employee_id:path}/settings")
 async def get_policy_settings(employee_id: str, request: Request):
     """
-    Returns a settings.json-compatible fragment the hook agent can merge.
-    Falls back to 'default' policy if no per-user policy exists.
+    Returns a settings.json-compatible fragment the hook agent merges.
+    Falls back to 'default' if no per-user policy exists.
+    Records last_fetched_at so the UI can show confirmation receipts.
     """
     if not check_auth(request):
         return Response("Unauthorized", status_code=401)
 
-    policy = col("policies").find_one({"employee_id": employee_id}, {"_id": 0})
-    if not policy:
-        policy = col("policies").find_one({"employee_id": "default"}, {"_id": 0})
+    now = datetime.now(timezone.utc)
+
+    policy = col("policies").find_one({"employee_id": employee_id})
+    if policy:
+        col("policies").update_one(
+            {"employee_id": employee_id},
+            {"$set": {"last_fetched_at": now}},
+        )
+    else:
+        policy = col("policies").find_one({"employee_id": "default"})
+
     if not policy:
         return {}
 
-    fragment = {}
+    fragment: dict = {}
     if policy.get("allow") or policy.get("deny"):
         fragment["permissions"] = {}
         if policy.get("allow"):
             fragment["permissions"]["allow"] = policy["allow"]
         if policy.get("deny"):
             fragment["permissions"]["deny"] = policy["deny"]
-    if policy.get("mcpServers"):
+    if policy.get("mcpServers") and policy["mcpServers"]:
         fragment["mcpServers"] = policy["mcpServers"]
-    if policy.get("enabledPlugins"):
+    if policy.get("enabledPlugins") and policy["enabledPlugins"]:
         fragment["enabledPlugins"] = policy["enabledPlugins"]
     if policy.get("model"):
         fragment["model"] = policy["model"]

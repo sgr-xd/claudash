@@ -2,6 +2,20 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { api } from '../api.js'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtAgo(ts) {
+  if (!ts) return 'Never'
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return 'Never'
+  const diff = Date.now() - d.getTime()
+  if (diff < 0) return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 function PolicyModal({ policy, onClose, onSaved }) {
@@ -168,13 +182,21 @@ function PolicyCard({ policy, onEdit, onDelete }) {
               policy.employee_id
             )}
           </div>
-          {policy.updated_at && (
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '3px' }}>
+            {policy.updated_at && (
+              <div style={s.cardMeta}>
+                Updated {new Date(policy.updated_at).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                })}
+              </div>
+            )}
             <div style={s.cardMeta}>
-              Updated {new Date(policy.updated_at).toLocaleString('en-US', {
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-              })}
+              <span style={{ color: 'var(--text-muted)', marginRight: '3px' }}>Last fetched:</span>
+              <span style={{ color: policy.last_fetched_at ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                {fmtAgo(policy.last_fetched_at)}
+              </span>
             </div>
-          )}
+          </div>
         </div>
         <div style={s.cardActions}>
           <button onClick={() => onEdit(policy)} style={s.editBtn}>Edit</button>
