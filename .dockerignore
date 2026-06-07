@@ -1,0 +1,17 @@
+.env
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+node_modules
+ui/node_modules
+ui/dist
+app/static
+*.md
+.gitignore
+.dockerignore
+audit-page.png
+claudash-debug.png
+claudash-fixed.png

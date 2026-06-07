@@ -1,0 +1,27 @@
+version: '3.9'
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    # Expose locally for debugging; comment out in production
+    ports:
+      - "27017:27017"
+
+  claudash:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3365}:3365"
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/claudash
+      MONGODB_DB: claudash
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:

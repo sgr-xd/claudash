@@ -1,0 +1,106 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* ── Claude's warm dark palette ───────────────────────────────────────── */
+  --bg-base:        #1a1917;   /* Claude main background */
+  --bg-sidebar:     #111110;   /* Claude sidebar — slightly darker */
+  --bg-card:        #222019;   /* Card / panel backgrounds */
+  --bg-card-hover:  #272522;
+  --bg-input:       #16150f;
+  --bg-elevated:    #2c2a24;   /* Modals, tooltips */
+  --border:         #2e2b25;   /* Subtle warm separator */
+  --border-light:   #3a3730;
+
+  /* ── Claude orange brand ─────────────────────────────────────────────── */
+  --accent:         #d97706;   /* Claude orange */
+  --accent-dim:     rgba(217, 119, 6, 0.14);
+  --accent-hover:   #f59e0b;
+  --accent-text:    #e8975e;   /* Lighter orange for text on dark */
+
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --text-primary:   #ede8df;   /* Warm off-white — Claude's body text */
+  --text-secondary: #9e9080;   /* Warm mid-grey */
+  --text-muted:     #6a6255;   /* Subtle warm muted */
+  --text-link:      #e8975e;
+
+  /* ── Status palette ──────────────────────────────────────────────────── */
+  --green:     #34d399;
+  --green-bg:  rgba(52, 211, 153, 0.12);
+  --red:       #f87171;
+  --red-bg:    rgba(248, 113, 113, 0.12);
+  --orange:    #fb923c;
+  --orange-bg: rgba(251, 146, 60, 0.13);
+  --yellow:    #fbbf24;
+  --yellow-bg: rgba(251, 191, 36, 0.12);
+  --purple:    #c084fc;
+  --purple-bg: rgba(192, 132, 252, 0.12);
+  --blue:      #60a5fa;
+  --blue-bg:   rgba(96, 165, 250, 0.12);
+  --grey:      #78716c;
+  --grey-bg:   rgba(120, 113, 108, 0.15);
+
+  /* ── Shape ───────────────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 16px;
+
+  --sidebar-width: 248px;
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--text-link);
+  text-decoration: none;
+}
+a:hover { color: var(--accent-hover); }
+
+button { font-family: var(--font); cursor: pointer; }
+
+input, select, textarea {
+  font-family: var(--font);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+input::placeholder { color: var(--text-muted); }
+select option { background: var(--bg-card); }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
